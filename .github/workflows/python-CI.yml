@@ -38,5 +38,5 @@ jobs:
     - name: Test Streamlit
       working-directory: .
       run: |
-        streamlit run explore_gen_captions.py
+        streamlit run explore_gen_captions.py &
 
