@@ -1,0 +1,183 @@
+r"""
+Created on 22/6/2021 5:27 PM
+@author: jiahuei
+
+streamlit run collect_captions_streamlit.py
+"""
+import json
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+import streamlit as st
+
+METRICS = ["Bleu_1", "Bleu_2", "Bleu_3", "Bleu_4", "METEOR", "ROUGE_L", "CIDEr", "SPICE"]
+
+
+def dict_filter(dict_obj, key_list):
+    return {k: v for k, v in dict_obj.items() if k in key_list}
+
+
+@st.cache
+def df_from_scores_detailed(scores_detailed) -> pd.DataFrame:
+    scores_detailed = json.load(scores_detailed)
+    scores = []
+    for sc in scores_detailed:
+        items = [sc["image_id"]]
+        items += [sc[_] for _ in METRICS[:-1]]
+        items += [sc["SPICE"]["All"]["f"]]
+        scores.append(items)
+    scores = pd.DataFrame(scores, columns=["image_id"] + METRICS)
+    return scores
+
+
+@st.cache
+def df_from_captions(captions):
+    captions = json.load(captions)
+    captions = pd.DataFrame(captions)
+    return captions
+
+
+@st.cache
+def merge_captions_scores(captions, scores_detailed):
+    merged = captions.merge(
+        scores_detailed, on="image_id", how="outer"
+    )
+    assert len(captions) == len(scores_detailed)
+    assert len(merged) == len(captions)
+    assert len(merged) == len(scores_detailed)
+    return merged
+
+
+@st.cache
+def load_coco_json(coco):
+    coco = json.load(coco)
+    images = [dict_filter(_, ["coco_url", "id"]) for _ in coco["images"]]
+    captions = [dict_filter(_, ["caption", "image_id"]) for _ in coco["annotations"]]
+    # Convert to DF
+    images = pd.DataFrame(images)
+    captions = pd.DataFrame(captions)
+    # Group captions
+    captions["caption"] = captions["caption"].map(lambda x: f"1. {x}")
+    captions = captions.groupby("image_id").agg(lambda x: "\n\n".join(x)).reset_index()
+    captions = captions.astype({"caption": "string"})
+    # Merge and drop `id` column
+    merged = images.merge(captions, how="outer", left_on="id", right_on="image_id")
+    merged = merged[["coco_url", "image_id", "caption"]]
+    return merged
+
+
+def display_caption(df, key):
+    st.header(key.capitalize())
+    st.markdown(df[f"caption_{key}"])
+    scores = [df[f"{m}_{key}"] for m in METRICS]
+    scores = " | ".join(f"{s:.2f}" for s in scores)
+    scores_md = f"| {key} | {scores} |\n"
+    return scores_md
+
+
+def main():
+    st.sidebar.title("COCO Generated Caption Explorer")
+
+    # COCO JSON for image URLs
+    upload_help = "Provide MS-COCO validation JSON (captions_val2014.json)"
+    uploaded_file = st.sidebar.file_uploader(upload_help)
+    if uploaded_file is None:
+        raise FileNotFoundError(upload_help)
+        pass
+    else:
+        coco_val = load_coco_json(uploaded_file)
+
+    # Baseline
+    upload_help = "Provide caption JSON (baseline)"
+    uploaded_file = st.sidebar.file_uploader(upload_help)
+    if uploaded_file is None:
+        raise FileNotFoundError(upload_help)
+    else:
+        baseline_captions = df_from_captions(uploaded_file)
+
+    upload_help = "Provide detailed score JSON (baseline)"
+    uploaded_file = st.sidebar.file_uploader(upload_help)
+    if uploaded_file is None:
+        raise FileNotFoundError(upload_help)
+    else:
+        baseline_scores = df_from_scores_detailed(uploaded_file)
+
+    baseline = merge_captions_scores(baseline_captions, baseline_scores)
+
+    # Model
+    upload_help = "Provide caption JSON (model)"
+    uploaded_file = st.sidebar.file_uploader(upload_help)
+    if uploaded_file is None:
+        raise FileNotFoundError(upload_help)
+    else:
+        model_captions = df_from_captions(uploaded_file)
+
+    upload_help = "Provide detailed score JSON (model)"
+    uploaded_file = st.sidebar.file_uploader(upload_help)
+    if uploaded_file is None:
+        raise FileNotFoundError(upload_help)
+    else:
+        model_scores = df_from_scores_detailed(uploaded_file)
+
+    model = merge_captions_scores(model_captions, model_scores)
+
+    # Merge DF
+    merged = baseline.merge(
+        model, on="image_id", how="outer", suffixes=["_baseline", "_model"]
+    )
+    merged = coco_val.merge(
+        merged, on="image_id", how="outer"
+    ).dropna(axis=0)
+    merged = merged.rename(columns={"caption": "caption_coco"})
+    assert len(baseline) == len(model)
+    assert len(merged) == len(baseline)
+    assert len(merged) == len(model)
+
+    # Sort
+    col1, _, col2 = st.beta_columns([4, 0.2, 6])
+    with col2:
+        selected_sort = st.selectbox(
+            "Sort by", METRICS, METRICS.index("CIDEr")
+        )
+        relative_diff = st.checkbox("Relative difference")
+    diff = merged[f"{selected_sort}_model"] - merged[f"{selected_sort}_baseline"]
+    if relative_diff:
+        diff /= (merged[f"{selected_sort}_baseline"] + 1e-6)
+    sort_index = diff.sort_values(ascending=False).index
+    sorted_df = merged.loc[sort_index]
+
+    # Index selector
+    with col2:
+        selected_index = st.number_input(
+            f"Jump to index: (0 - {len(sorted_df) - 1})",
+            min_value=0, max_value=len(sorted_df) - 1, value=0, step=1,
+        )
+    sorted_df_selected = sorted_df.iloc[selected_index]
+
+    # Display image
+    with col1:
+        st.header(f"Image ID: {sorted_df_selected['image_id']}")
+        st.image(sorted_df_selected["coco_url"])
+    with col2:
+        score_md = "| Approach | " + " | ".join(METRICS) + " | "
+        score_md += """
+        | --- | --- |
+        """
+        score_md += display_caption(sorted_df_selected, "baseline")
+        score_md += display_caption(sorted_df_selected, "model")
+        st.header("Scores")
+        st.markdown(score_md)
+
+    st.header("Ground Truth")
+    st.markdown(sorted_df_selected["caption_coco"])
+
+    st.markdown("---")
+    with st.beta_expander("Debugging info"):
+        st.subheader("Merged Dataframe")
+        st.dataframe(merged.iloc[:100])
+
+
+if __name__ == "__main__":
+    st.set_page_config(layout="wide")
+    main()
