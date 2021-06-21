@@ -2,7 +2,7 @@ r"""
 Created on 22/6/2021 5:27 PM
 @author: jiahuei
 
-streamlit run collect_captions_streamlit.py
+streamlit run explore_gen_captions.py
 """
 import json
 import numpy as np
