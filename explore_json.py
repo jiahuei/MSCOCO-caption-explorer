@@ -8,6 +8,7 @@ import json
 import streamlit as st
 
 
+# https://discuss.streamlit.io/t/issue-with-caching-data-uploaded-via-the-file-uploader/3791/3
 @st.cache(allow_output_mutation=True)
 def load_json(file):
     return json.load(file)

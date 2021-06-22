@@ -39,4 +39,5 @@ jobs:
       working-directory: .
       run: |
         streamlit run explore_gen_captions.py &
+        streamlit run explore_json.py &
 
