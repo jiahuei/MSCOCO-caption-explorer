@@ -3,6 +3,9 @@ _ref_
 _test_data_
 *.psd
 
+# Demo data
+demo/*.json
+
 # Ignore emacs backup files
 *~
 
