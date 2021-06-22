@@ -27,13 +27,18 @@ def main():
     data = load_json(uploaded_file)
     st.header(f"Filename: {uploaded_file.name}")
     st.markdown(f"---")
+    top1, top2 = st.beta_columns([5, 6])
+    with top1:
+        st.info('You can provide an expression for filtering the loaded JSON "`data`" object.')
+    with top2:
+        st.warning('Note: The expression is evaluated using `eval()`. See https://stackoverflow.com/a/34385055')
     expression = st.text_input(
-        label='Expression for filtering JSON "data" object. Example: data["x"]',
+        label='Expression examples: data["x"], data[0]',
         value="data"
     )
     st.markdown(f"---")
     try:
-        data = eval(expression, {"data": data})
+        data = eval(expression, {"data": data, "__builtins__": {}})
     except Exception:
         st.markdown(f"Invalid expression. The full JSON object is:")
         st.json(data)
