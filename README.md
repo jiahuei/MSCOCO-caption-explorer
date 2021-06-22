@@ -9,7 +9,11 @@ Just clone this repo and start exploring.
 
 Run `streamlit run explore_gen_captions.py`
 
-![alt text](./demo/explore_gen_captions.png "explore_gen_captions.py")
+Demo:
+1. Unzip `demo/data.zip`
+2. Run the script
+3. Screenshot:
+    ![alt text](./demo/explore_gen_captions.png "explore_gen_captions.py")
 
 
 ## Requirements

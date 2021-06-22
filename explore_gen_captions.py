@@ -7,18 +7,11 @@ streamlit run explore_gen_captions.py
 import json
 import numpy as np
 import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
 import streamlit as st
-
-METRICS = ["Bleu_1", "Bleu_2", "Bleu_3", "Bleu_4", "METEOR", "ROUGE_L", "CIDEr", "SPICE"]
-
-
-def dict_filter(dict_obj, key_list):
-    return {k: v for k, v in dict_obj.items() if k in key_list}
+from utils import METRICS, dict_filter
 
 
-@st.cache
+@st.cache(allow_output_mutation=True, max_entries=2)
 def df_from_scores_detailed(scores_detailed) -> pd.DataFrame:
     scores_detailed = json.load(scores_detailed)
     scores = []
@@ -31,14 +24,14 @@ def df_from_scores_detailed(scores_detailed) -> pd.DataFrame:
     return scores
 
 
-@st.cache
+@st.cache(max_entries=2)
 def df_from_captions(captions):
     captions = json.load(captions)
     captions = pd.DataFrame(captions)
     return captions
 
 
-@st.cache
+@st.cache(max_entries=2)
 def merge_captions_scores(captions, scores_detailed):
     merged = captions.merge(
         scores_detailed, on="image_id", how="outer"
@@ -49,7 +42,7 @@ def merge_captions_scores(captions, scores_detailed):
     return merged
 
 
-@st.cache
+@st.cache(max_entries=2)
 def load_coco_json(coco):
     coco = json.load(coco)
     images = [dict_filter(_, ["coco_url", "id"]) for _ in coco["images"]]
@@ -78,13 +71,23 @@ def display_caption(df, key):
 
 def main():
     st.sidebar.title("COCO Generated Caption Explorer")
+    st.sidebar.markdown("---")
+
+    # Top panel
+    top1, top2, top3 = st.beta_columns(3)
+    with top1:
+        seed = st.number_input(
+            f"PRNG seed",
+            min_value=0, max_value=None, value=0, step=1,
+        )
+    np.random.seed(seed)
 
     # COCO JSON for image URLs
     upload_help = "Provide MS-COCO validation JSON (captions_val2014.json)"
     uploaded_file = st.sidebar.file_uploader(upload_help)
     if uploaded_file is None:
-        raise FileNotFoundError(upload_help)
-        pass
+        st.info(f"{upload_help}, by uploading it in the sidebar")
+        return
     else:
         coco_val = load_coco_json(uploaded_file)
 
@@ -92,16 +95,19 @@ def main():
     upload_help = "Provide caption JSON (baseline)"
     uploaded_file = st.sidebar.file_uploader(upload_help)
     if uploaded_file is None:
-        raise FileNotFoundError(upload_help)
+        st.info(f"{upload_help}, by uploading it in the sidebar")
+        return
     else:
         baseline_captions = df_from_captions(uploaded_file)
 
     upload_help = "Provide detailed score JSON (baseline)"
     uploaded_file = st.sidebar.file_uploader(upload_help)
     if uploaded_file is None:
-        raise FileNotFoundError(upload_help)
+        st.info(f"{upload_help}, by uploading it in the sidebar")
+        return
     else:
         baseline_scores = df_from_scores_detailed(uploaded_file)
+    baseline_scores["Random"] = np.random.random([len(baseline_scores)])
 
     baseline = merge_captions_scores(baseline_captions, baseline_scores)
 
@@ -109,16 +115,19 @@ def main():
     upload_help = "Provide caption JSON (model)"
     uploaded_file = st.sidebar.file_uploader(upload_help)
     if uploaded_file is None:
-        raise FileNotFoundError(upload_help)
+        st.info(f"{upload_help}, by uploading it in the sidebar")
+        return
     else:
         model_captions = df_from_captions(uploaded_file)
 
     upload_help = "Provide detailed score JSON (model)"
     uploaded_file = st.sidebar.file_uploader(upload_help)
     if uploaded_file is None:
-        raise FileNotFoundError(upload_help)
+        st.info(f"{upload_help}, by uploading it in the sidebar")
+        return
     else:
         model_scores = df_from_scores_detailed(uploaded_file)
+    model_scores["Random"] = np.random.random([len(model_scores)])
 
     model = merge_captions_scores(model_captions, model_scores)
 
@@ -135,10 +144,10 @@ def main():
     assert len(merged) == len(model)
 
     # Sort
-    col1, _, col2 = st.beta_columns([4, 0.2, 6])
-    with col2:
+    with top2:
+        sort_by = baseline.columns.tolist()[2:]
         selected_sort = st.selectbox(
-            "Sort by", METRICS, METRICS.index("CIDEr")
+            "Sort by", sort_by, sort_by.index("CIDEr")
         )
         relative_diff = st.checkbox("Relative difference")
     diff = merged[f"{selected_sort}_model"] - merged[f"{selected_sort}_baseline"]
@@ -148,13 +157,14 @@ def main():
     sorted_df = merged.loc[sort_index]
 
     # Index selector
-    with col2:
+    with top3:
         selected_index = st.number_input(
             f"Jump to index: (0 - {len(sorted_df) - 1})",
             min_value=0, max_value=len(sorted_df) - 1, value=0, step=1,
         )
     sorted_df_selected = sorted_df.iloc[selected_index]
 
+    col1, _, col2 = st.beta_columns([4, 0.2, 6])
     # Display image
     with col1:
         st.header(f"Image ID: {sorted_df_selected['image_id']}")
@@ -176,6 +186,10 @@ def main():
     with st.beta_expander("Debugging info"):
         st.subheader("Merged Dataframe")
         st.dataframe(merged.iloc[:100])
+        st.subheader("Baseline Dataframe")
+        st.dataframe(baseline.iloc[:100])
+        st.subheader("Model Dataframe")
+        st.dataframe(model.iloc[:100])
 
 
 if __name__ == "__main__":
