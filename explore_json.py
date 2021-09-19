@@ -28,14 +28,17 @@ def main():
     data = load_json(uploaded_file)
     st.header(f"Filename: {uploaded_file.name}")
     st.markdown(f"---")
-    top1, top2 = st.beta_columns([5, 6])
+    top1, top2 = st.columns([5, 6])
     with top1:
-        st.info('You can provide an expression for filtering the loaded JSON "`data`" object.')
+        st.info(
+            'You can provide an expression for filtering the loaded JSON "`data`" object.'
+        )
     with top2:
-        st.warning('Note: The expression is evaluated using `eval()`. See https://stackoverflow.com/a/34385055')
+        st.warning(
+            "Note: The expression is evaluated using `eval()`. See https://stackoverflow.com/a/34385055"
+        )
     expression = st.text_input(
-        label='Expression examples: data["x"], data[0]',
-        value="data"
+        label='Expression examples: data["x"], data[0]', value="data"
     )
     st.markdown(f"---")
     try:
@@ -46,8 +49,12 @@ def main():
         raise
     else:
         st.markdown(f"Length: {len(data)}")
+        st.markdown(f"Type: {type(data)}")
         st.markdown(f"Data:")
-        st.json(data)
+        if isinstance(data, (list, dict)):
+            st.json(data)
+        else:
+            st.markdown(data)
 
 
 if __name__ == "__main__":
