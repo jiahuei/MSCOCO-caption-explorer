@@ -184,7 +184,7 @@ def main():
     st.markdown(sorted_df_selected["caption_coco"])
 
     st.markdown("---")
-    with st.beta_expander("Debugging info"):
+    with st.expander("Debugging info"):
         st.subheader("Merged Dataframe")
         st.dataframe(merged.iloc[:100])
         st.subheader("Baseline Dataframe")
