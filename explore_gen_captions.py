@@ -8,7 +8,7 @@ import json
 import numpy as np
 import pandas as pd
 import streamlit as st
-from utils import METRICS, dict_filter, load_image_from_url
+from utils import METRICS, dict_filter, load_image_from_url_streamlit
 
 
 @st.cache(allow_output_mutation=True, max_entries=2)
@@ -33,9 +33,7 @@ def df_from_captions(captions):
 
 @st.cache(max_entries=2)
 def merge_captions_scores(captions, scores_detailed):
-    merged = captions.merge(
-        scores_detailed, on="image_id", how="outer"
-    )
+    merged = captions.merge(scores_detailed, on="image_id", how="outer")
     assert len(captions) == len(scores_detailed)
     assert len(merged) == len(captions)
     assert len(merged) == len(scores_detailed)
@@ -74,11 +72,14 @@ def main():
     st.sidebar.markdown("---")
 
     # Top panel
-    top1, top2, top3 = st.beta_columns(3)
+    top1, top2, top3 = st.columns(3)
     with top1:
         seed = st.number_input(
             f"PRNG seed",
-            min_value=0, max_value=None, value=0, step=1,
+            min_value=0,
+            max_value=None,
+            value=0,
+            step=1,
         )
     np.random.seed(seed)
 
@@ -135,9 +136,7 @@ def main():
     merged = baseline.merge(
         model, on="image_id", how="outer", suffixes=["_baseline", "_model"]
     )
-    merged = coco_val.merge(
-        merged, on="image_id", how="outer"
-    ).dropna(axis=0)
+    merged = coco_val.merge(merged, on="image_id", how="outer").dropna(axis=0)
     merged = merged.rename(columns={"caption": "caption_coco"})
     assert len(baseline) == len(model)
     assert len(merged) == len(baseline)
@@ -146,13 +145,11 @@ def main():
     # Sort
     with top2:
         sort_by = baseline.columns.tolist()[2:]
-        selected_sort = st.selectbox(
-            "Sort by", sort_by, sort_by.index("CIDEr")
-        )
+        selected_sort = st.selectbox("Sort by", sort_by, sort_by.index("CIDEr"))
         relative_diff = st.checkbox("Relative difference")
     diff = merged[f"{selected_sort}_model"] - merged[f"{selected_sort}_baseline"]
     if relative_diff:
-        diff /= (merged[f"{selected_sort}_baseline"] + 1e-6)
+        diff /= merged[f"{selected_sort}_baseline"] + 1e-6
     sort_index = diff.sort_values(ascending=False).index
     sorted_df = merged.loc[sort_index]
 
@@ -160,15 +157,18 @@ def main():
     with top3:
         selected_index = st.number_input(
             f"Jump to index: (0 - {len(sorted_df) - 1})",
-            min_value=0, max_value=len(sorted_df) - 1, value=0, step=1,
+            min_value=0,
+            max_value=len(sorted_df) - 1,
+            value=0,
+            step=1,
         )
     sorted_df_selected = sorted_df.iloc[selected_index]
 
-    col1, _, col2 = st.beta_columns([4, 0.2, 6])
+    col1, _, col2 = st.columns([4, 0.2, 6])
     # Display image
     with col1:
         st.header(f"Image ID: {sorted_df_selected['image_id']}")
-        image = load_image_from_url(sorted_df_selected["coco_url"])
+        image = load_image_from_url_streamlit(sorted_df_selected["coco_url"])
         st.image(image)
     with col2:
         score_md = "| Approach | " + " | ".join(METRICS) + " | "
