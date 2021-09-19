@@ -8,7 +8,7 @@ import json
 import numpy as np
 import pandas as pd
 import streamlit as st
-from utils import METRICS, dict_filter, load_image_from_url_streamlit
+from utils import METRICS, dict_filter, load_image_from_url
 
 
 @st.cache(allow_output_mutation=True, max_entries=2)
@@ -168,7 +168,7 @@ def main():
     # Display image
     with col1:
         st.header(f"Image ID: {sorted_df_selected['image_id']}")
-        image = load_image_from_url_streamlit(sorted_df_selected["coco_url"])
+        image = load_image_from_url(sorted_df_selected["coco_url"])
         st.image(image)
     with col2:
         score_md = "| Approach | " + " | ".join(METRICS) + " | "
