@@ -72,10 +72,10 @@ def main():
     st.sidebar.markdown("---")
 
     # Top panel
-    top1, top2, top3 = st.columns(3)
+    top1, top2, top3, top4 = st.columns([0.2, 0.3, 0.3, 0.3])
     with top1:
         seed = st.number_input(
-            f"PRNG seed",
+            "PRNG seed",
             min_value=0,
             max_value=None,
             value=0,
@@ -133,28 +133,38 @@ def main():
     model = merge_captions_scores(model_captions, model_scores)
 
     # Merge DF
-    merged = baseline.merge(
-        model, on="image_id", how="outer", suffixes=["_baseline", "_model"]
-    )
+    merged = baseline.merge(model, on="image_id", how="outer", suffixes=["_baseline", "_model"])
     merged = coco_val.merge(merged, on="image_id", how="outer").dropna(axis=0)
     merged = merged.rename(columns={"caption": "caption_coco"})
     assert len(baseline) == len(model)
     assert len(merged) == len(baseline)
     assert len(merged) == len(model)
 
-    # Sort
+    # Sort metric
     with top2:
         sort_by = baseline.columns.tolist()[2:]
-        selected_sort = st.selectbox("Sort by", sort_by, sort_by.index("CIDEr"))
-        relative_diff = st.checkbox("Relative difference")
-    diff = merged[f"{selected_sort}_model"] - merged[f"{selected_sort}_baseline"]
-    if relative_diff:
-        diff /= merged[f"{selected_sort}_baseline"] + 1e-6
+        selected_sort_metric = st.selectbox("Sort by", sort_by, sort_by.index("CIDEr"))
+
+    # Sort method
+    with top3:
+        sort_methods = ["Baseline score", "Model score", "Difference", "Relative difference"]
+        selected_sort_method = st.selectbox("Sort method", sort_methods, 1)
+
+    if selected_sort_method == sort_methods[0]:
+        diff = merged[f"{selected_sort_metric}_baseline"]
+    elif selected_sort_method == sort_methods[1]:
+        diff = merged[f"{selected_sort_metric}_model"]
+    else:
+        diff = merged[f"{selected_sort_metric}_model"] - merged[f"{selected_sort_metric}_baseline"]
+        if selected_sort_method == sort_methods[2]:
+            pass
+        else:
+            diff /= merged[f"{selected_sort_metric}_baseline"] + 1e-6
     sort_index = diff.sort_values(ascending=False).index
     sorted_df = merged.loc[sort_index]
 
     # Index selector
-    with top3:
+    with top4:
         selected_index = st.number_input(
             f"Jump to index: (0 - {len(sorted_df) - 1})",
             min_value=0,
@@ -175,8 +185,8 @@ def main():
         score_md += """
         | --- | --- |
         """
-        score_md += display_caption(sorted_df_selected, "baseline")
         score_md += display_caption(sorted_df_selected, "model")
+        score_md += display_caption(sorted_df_selected, "baseline")
         st.header("Scores")
         st.markdown(score_md)
 
